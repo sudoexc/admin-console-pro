@@ -19,7 +19,6 @@ import SubscriptionsPage from "./pages/admin/SubscriptionsPage";
 import UsersPage from "./pages/admin/UsersPage";
 import MessagesPage from "./pages/admin/MessagesPage";
 import PaymentMethodsPage from "./pages/admin/PaymentMethodsPage";
-import GroupsPage from "./pages/admin/GroupsPage";
 import SubscriptionsReportPage from "./pages/admin/SubscriptionsReportPage";
 import NotFound from "./pages/NotFound";
 
@@ -75,10 +74,6 @@ const App = () => (
                 <Route path="payment-methods" element={<PaymentMethodsPage />} />
                 <Route path="payment-methods/create" element={<PaymentMethodsPage />} />
                 <Route path="payment-methods/:id/edit" element={<PaymentMethodsPage />} />
-                
-                <Route path="groups" element={<GroupsPage />} />
-                <Route path="groups/create" element={<GroupsPage />} />
-                <Route path="groups/:id/edit" element={<GroupsPage />} />
                 
                 <Route path="analytics/subscriptions-report" element={<SubscriptionsReportPage />} />
               </Route>

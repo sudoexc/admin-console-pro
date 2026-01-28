@@ -42,7 +42,7 @@ const initialPlans: SubscriptionPlan[] = [
 ];
 
 const initialUsers: User[] = [
-  { id: '1', phone: '+7 (999) 123-45-67', name: 'Иван Петров', email: 'ivan@example.com', role: 'admin', createdAt: '2024-01-10T08:00:00Z' },
+  { id: '1', phone: '+7 (999) 123-45-67', name: 'Админ', email: 'admin@example.com', role: 'admin', createdAt: '2024-01-10T08:00:00Z' },
   { id: '2', phone: '+7 (999) 234-56-78', name: 'Мария Сидорова', email: 'maria@example.com', role: 'user', createdAt: '2024-01-15T12:00:00Z' },
   { id: '3', phone: '+7 (999) 345-67-89', name: 'Алексей Козлов', email: 'alex@example.com', role: 'user', createdAt: '2024-01-20T15:30:00Z' },
   { id: '4', phone: '+7 (999) 456-78-90', name: 'Елена Новикова', email: 'elena@example.com', role: 'moderator', createdAt: '2024-02-01T10:00:00Z' },
@@ -85,11 +85,11 @@ const initialGroups: Group[] = [
 ];
 
 const initialRecentActions: RecentAction[] = [
-  { id: '1', entityType: 'user', entityId: '6', entityName: 'Анна Морозова', action: 'create', userId: '1', userName: 'Иван Петров', timestamp: '2024-02-15T14:30:00Z' },
-  { id: '2', entityType: 'payment', entityId: '4', entityName: 'Оплата #4', action: 'create', userId: '1', userName: 'Иван Петров', timestamp: '2024-02-15T14:00:00Z' },
-  { id: '3', entityType: 'subscription', entityId: '4', entityName: 'Подписка Анна Морозова', action: 'create', userId: '1', userName: 'Иван Петров', timestamp: '2024-02-15T13:45:00Z' },
-  { id: '4', entityType: 'bot', entityId: '4', entityName: 'Промо бот', action: 'edit', userId: '1', userName: 'Иван Петров', timestamp: '2024-02-15T12:00:00Z' },
-  { id: '5', entityType: 'plan', entityId: '5', entityName: 'Пробный', action: 'create', userId: '1', userName: 'Иван Петров', timestamp: '2024-02-15T10:30:00Z' },
+  { id: '1', entityType: 'user', entityId: '6', entityName: 'Анна Морозова', action: 'create', userId: '1', userName: 'Админ', timestamp: '2024-02-15T14:30:00Z' },
+  { id: '2', entityType: 'payment', entityId: '4', entityName: 'Оплата #4', action: 'create', userId: '1', userName: 'Админ', timestamp: '2024-02-15T14:00:00Z' },
+  { id: '3', entityType: 'subscription', entityId: '4', entityName: 'Подписка Анна Морозова', action: 'create', userId: '1', userName: 'Админ', timestamp: '2024-02-15T13:45:00Z' },
+  { id: '4', entityType: 'bot', entityId: '4', entityName: 'Промо бот', action: 'edit', userId: '1', userName: 'Админ', timestamp: '2024-02-15T12:00:00Z' },
+  { id: '5', entityType: 'plan', entityId: '5', entityName: 'Пробный', action: 'create', userId: '1', userName: 'Админ', timestamp: '2024-02-15T10:30:00Z' },
 ];
 
 // Helper to get or initialize data
@@ -173,7 +173,7 @@ export const getMockDashboardStats = (): DashboardStats => {
 // Mock auth user
 export const mockAuthUser: AuthUser = {
   id: '1',
-  name: 'Иван Петров',
+  name: 'Админ',
   email: 'admin@example.com',
   role: 'admin',
   avatar: undefined,

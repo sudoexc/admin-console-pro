@@ -111,15 +111,6 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ collapsed, onToggle 
           />
         </SidebarNavGroup>
 
-        <SidebarNavGroup title="Пользователи и группы" collapsed={collapsed}>
-          <SidebarNavItem
-            to="/admin/groups"
-            icon={Shield}
-            label="Группы"
-            collapsed={collapsed}
-          />
-        </SidebarNavGroup>
-
         <SidebarNavGroup title="Аналитика" collapsed={collapsed}>
           <SidebarNavItem
             to="/admin/analytics/subscriptions-report"

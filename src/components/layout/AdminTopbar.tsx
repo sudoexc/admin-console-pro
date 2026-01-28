@@ -31,7 +31,6 @@ const routeNames: Record<string, string> = {
   '/admin/users': 'Пользователи',
   '/admin/messages': 'Сообщения',
   '/admin/payment-methods': 'Способы оплаты',
-  '/admin/groups': 'Группы',
   '/admin/analytics/subscriptions-report': 'Отчёт по подпискам',
 };
 
