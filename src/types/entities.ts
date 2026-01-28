@@ -1,26 +1,34 @@
 // Entity types for the admin panel
 
 export interface Bot {
-  id: string;
-  name: string;
+  id: string | number;
+  title: string;
   username: string;
-  status: 'active' | 'inactive' | 'suspended';
-  createdAt: string;
+  notification_group_id: number;
+  bot_token: string;
+  request_port: number;
+  created_at?: string;
 }
 
 export interface SubscriptionPlan {
-  id: string;
-  title: string;
-  price: number;
-  periodDays: number;
-  isActive: boolean;
-  createdAt: string;
+  id: string | number;
+  name: string;
+  duration_days: number;
+  price_usdt: string;
+  price_uzs: string;
+  price_stars: string;
+  price_rub: string;
+  is_active: boolean;
+  bot: number;
+  created_at?: string;
 }
 
 export interface Payment {
   id: string;
   userId: string;
   userName?: string;
+  botId?: string;
+  botName?: string;
   amount: number;
   method: string;
   status: 'pending' | 'completed' | 'failed' | 'refunded';
@@ -33,9 +41,12 @@ export interface Subscription {
   userName?: string;
   planId: string;
   planTitle?: string;
+  botId?: string | number;
+  botName?: string;
   startAt: string;
   endAt: string;
   status: 'active' | 'expired' | 'cancelled';
+  createdAt?: string;
 }
 
 export interface User {
@@ -118,7 +129,7 @@ export interface AuthUser {
 }
 
 export interface LoginRequest {
-  email: string;
+  username: string;
   password: string;
 }
 

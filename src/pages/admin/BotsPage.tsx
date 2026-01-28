@@ -5,9 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { DataTable } from '@/components/table/DataTable';
 import { DataTableSearch } from '@/components/table/DataTableSearch';
-import { DataTablePagination } from '@/components/table/DataTablePagination';
 import { DataTableActions } from '@/components/table/DataTableActions';
-import { StatusBadge } from '@/components/ui/status-badge';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { botsApi } from '@/api/entities';
 import { Bot } from '@/types/entities';
@@ -15,32 +13,20 @@ import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 
-const statusLabels: Record<string, string> = {
-  active: 'Активен',
-  inactive: 'Неактивен',
-  suspended: 'Приостановлен',
-};
-
 const BotsPage: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [data, setData] = useState<Bot[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const limit = 10;
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await botsApi.getAll({ page, limit, search });
-      setData(response.data);
-      setTotal(response.total);
-      setTotalPages(response.totalPages);
+      const bots = await botsApi.getAll();
+      setData(bots);
     } catch (error) {
       console.error('Failed to fetch bots:', error);
       toast({
@@ -51,7 +37,7 @@ const BotsPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [page, search, toast]);
+  }, [toast]);
 
   useEffect(() => {
     fetchData();
@@ -76,29 +62,44 @@ const BotsPage: React.FC = () => {
     }
   };
 
+  const filtered = data.filter((bot) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (
+      bot.title.toLowerCase().includes(q) ||
+      bot.username.toLowerCase().includes(q) ||
+      String(bot.notification_group_id).includes(q)
+    );
+  });
+
   const columns = [
     {
-      key: 'name',
+      key: 'title',
       header: 'Название',
       cell: (bot: Bot) => (
         <div>
-          <p className="font-medium">{bot.name}</p>
+          <p className="font-medium">{bot.title}</p>
           <p className="text-sm text-muted-foreground">{bot.username}</p>
         </div>
       ),
     },
     {
-      key: 'status',
-      header: 'Статус',
-      cell: (bot: Bot) => (
-        <StatusBadge status={bot.status} label={statusLabels[bot.status]} />
-      ),
+      key: 'notification_group_id',
+      header: 'ID группы уведомлений',
+      cell: (bot: Bot) => bot.notification_group_id,
     },
     {
-      key: 'createdAt',
+      key: 'request_port',
+      header: 'Порт',
+      cell: (bot: Bot) => bot.request_port,
+    },
+    {
+      key: 'created_at',
       header: 'Создан',
       cell: (bot: Bot) =>
-        format(new Date(bot.createdAt), 'dd MMM yyyy', { locale: ru }),
+        bot.created_at
+          ? format(new Date(bot.created_at), 'dd MMM yyyy', { locale: ru })
+          : '—',
     },
     {
       key: 'actions',
@@ -106,7 +107,7 @@ const BotsPage: React.FC = () => {
       cell: (bot: Bot) => (
         <DataTableActions
           onEdit={() => navigate(`/admin/bots/${bot.id}/edit`)}
-          onDelete={() => setDeleteId(bot.id)}
+          onDelete={() => setDeleteId(String(bot.id))}
         />
       ),
     },
@@ -132,7 +133,6 @@ const BotsPage: React.FC = () => {
               value={search}
               onChange={(value) => {
                 setSearch(value);
-                setPage(1);
               }}
               placeholder="Поиск по названию..."
               showFilterButton={false}
@@ -141,21 +141,11 @@ const BotsPage: React.FC = () => {
 
           <DataTable
             columns={columns}
-            data={data}
+            data={filtered}
             isLoading={isLoading}
-            rowKey={(bot) => bot.id}
+            rowKey={(bot) => String(bot.id)}
             emptyMessage="Боты не найдены"
           />
-
-          {totalPages > 1 && (
-            <DataTablePagination
-              page={page}
-              totalPages={totalPages}
-              total={total}
-              limit={limit}
-              onPageChange={setPage}
-            />
-          )}
         </CardContent>
       </Card>
 

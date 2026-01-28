@@ -11,10 +11,6 @@ import {
   Group,
 } from '@/types/entities';
 import {
-  getMockBots,
-  setMockBots,
-  getMockPlans,
-  setMockPlans,
   getMockPayments,
   setMockPayments,
   getMockSubscriptions,
@@ -165,29 +161,23 @@ function createMockCrud<T extends { id: string; createdAt?: string }>(
 }
 
 // Entity APIs
-export const botsApi = MOCK_MODE
-  ? createMockCrud<Bot>('bot', getMockBots, setMockBots, (b) => b.name)
-  : {
-      getAll: (params?: { page?: number; limit?: number; search?: string }) =>
-        apiClient.get<PaginatedResponse<Bot>>('/bots', { params }).then((r) => r.data),
-      getById: (id: string) => apiClient.get<Bot>(`/bots/${id}`).then((r) => r.data),
-      create: (data: Omit<Bot, 'id' | 'createdAt'>) => apiClient.post<Bot>('/bots', data).then((r) => r.data),
-      update: (id: string, data: Partial<Bot>) => apiClient.patch<Bot>(`/bots/${id}`, data).then((r) => r.data),
-      delete: (id: string) => apiClient.delete(`/bots/${id}`).then(() => undefined),
-    };
+export const botsApi = {
+  getAll: () => apiClient.get<Bot[]>('/bots/').then((r) => r.data),
+  getById: (id: string | number) => apiClient.get<Bot>(`/bots/${id}/`).then((r) => r.data),
+  create: (data: Omit<Bot, 'id' | 'created_at'>) => apiClient.post<Bot>('/bots/', data).then((r) => r.data),
+  update: (id: string | number, data: Partial<Bot>) => apiClient.patch<Bot>(`/bots/${id}/`, data).then((r) => r.data),
+  delete: (id: string | number) => apiClient.delete(`/bots/${id}/`).then(() => undefined),
+};
 
-export const plansApi = MOCK_MODE
-  ? createMockCrud<SubscriptionPlan>('plan', getMockPlans, setMockPlans, (p) => p.title)
-  : {
-      getAll: (params?: { page?: number; limit?: number; search?: string }) =>
-        apiClient.get<PaginatedResponse<SubscriptionPlan>>('/subscription-plans', { params }).then((r) => r.data),
-      getById: (id: string) => apiClient.get<SubscriptionPlan>(`/subscription-plans/${id}`).then((r) => r.data),
-      create: (data: Omit<SubscriptionPlan, 'id' | 'createdAt'>) =>
-        apiClient.post<SubscriptionPlan>('/subscription-plans', data).then((r) => r.data),
-      update: (id: string, data: Partial<SubscriptionPlan>) =>
-        apiClient.patch<SubscriptionPlan>(`/subscription-plans/${id}`, data).then((r) => r.data),
-      delete: (id: string) => apiClient.delete(`/subscription-plans/${id}`).then(() => undefined),
-    };
+export const plansApi = {
+  getAll: () => apiClient.get<SubscriptionPlan[]>('/plans/').then((r) => r.data),
+  getById: (id: string | number) => apiClient.get<SubscriptionPlan>(`/plans/${id}/`).then((r) => r.data),
+  create: (data: Omit<SubscriptionPlan, 'id' | 'created_at'>) =>
+    apiClient.post<SubscriptionPlan>('/plans/', data).then((r) => r.data),
+  update: (id: string | number, data: Partial<SubscriptionPlan>) =>
+    apiClient.patch<SubscriptionPlan>(`/plans/${id}/`, data).then((r) => r.data),
+  delete: (id: string | number) => apiClient.delete(`/plans/${id}/`).then(() => undefined),
+};
 
 export const paymentsApi = MOCK_MODE
   ? createMockCrud<Payment>('payment', getMockPayments, setMockPayments, (p) => `Оплата #${p.id}`)

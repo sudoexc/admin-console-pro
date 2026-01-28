@@ -7,7 +7,7 @@ interface AuthContextType {
   user: AuthUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -51,9 +51,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     checkAuth();
   }, [checkAuth]);
 
-  const login = async (email: string, password: string): Promise<void> => {
-    const response = await authApi.login({ email, password });
-    setUser(response.user);
+  const login = async (username: string, password: string): Promise<void> => {
+    const userData = await authApi.login({ username, password });
+    setUser(userData);
   };
 
   const logout = async (): Promise<void> => {

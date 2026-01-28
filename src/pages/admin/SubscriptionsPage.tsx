@@ -78,32 +78,49 @@ const SubscriptionsPage: React.FC = () => {
   const columns = [
     {
       key: 'user',
-      header: 'Пользователь',
+      header: 'USER',
       cell: (sub: Subscription) => (
-        <p className="font-medium">{sub.userName || `ID: ${sub.userId}`}</p>
+        <p className="font-medium">{sub.userName || sub.userId}</p>
       ),
+    },
+    {
+      key: 'bot',
+      header: 'BOT',
+      cell: (sub: Subscription) => sub.botName || sub.botId || '—',
     },
     {
       key: 'plan',
-      header: 'Тариф',
+      header: 'PLAN',
       cell: (sub: Subscription) => sub.planTitle || sub.planId,
     },
     {
-      key: 'period',
-      header: 'Период',
-      cell: (sub: Subscription) => (
-        <span className="text-sm">
-          {format(new Date(sub.startAt), 'dd.MM.yy', { locale: ru })} —{' '}
-          {format(new Date(sub.endAt), 'dd.MM.yy', { locale: ru })}
-        </span>
-      ),
+      key: 'startAt',
+      header: 'START DATE',
+      cell: (sub: Subscription) =>
+        format(new Date(sub.startAt), 'dd MMM yyyy, HH:mm', { locale: ru }),
+    },
+    {
+      key: 'endAt',
+      header: 'END DATE',
+      cell: (sub: Subscription) =>
+        sub.endAt
+          ? format(new Date(sub.endAt), 'dd MMM yyyy, HH:mm', { locale: ru })
+          : '—',
     },
     {
       key: 'status',
-      header: 'Статус',
+      header: 'IS ACTIVE',
       cell: (sub: Subscription) => (
         <StatusBadge status={sub.status} label={statusLabels[sub.status]} />
       ),
+    },
+    {
+      key: 'createdAt',
+      header: 'CREATED AT',
+      cell: (sub: Subscription) =>
+        format(new Date(sub.createdAt || sub.startAt), 'dd MMM yyyy, HH:mm', {
+          locale: ru,
+        }),
     },
     {
       key: 'actions',

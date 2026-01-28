@@ -7,22 +7,23 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Loader2, ArrowLeft } from 'lucide-react';
 import { botsApi } from '@/api/entities';
 import { Bot } from '@/types/entities';
 import { useToast } from '@/hooks/use-toast';
 
 const botSchema = z.object({
-  name: z.string().min(1, 'Введите название').max(100),
+  title: z.string().min(1, 'Введите название').max(100),
   username: z.string().min(1, 'Введите username').max(50),
-  status: z.enum(['active', 'inactive', 'suspended']),
+  notification_group_id: z.preprocess(
+    (val) => Number(val),
+    z.number({ required_error: 'Введите ID группы' }).int('Только целое число')
+  ),
+  bot_token: z.string().min(1, 'Введите токен бота'),
+  request_port: z.preprocess(
+    (val) => Number(val),
+    z.number({ required_error: 'Введите порт' }).int('Только целое число')
+  ),
 });
 
 type BotFormData = z.infer<typeof botSchema>;
@@ -39,18 +40,17 @@ const BotFormPage: React.FC = () => {
     register,
     handleSubmit,
     setValue,
-    watch,
     formState: { errors },
   } = useForm<BotFormData>({
     resolver: zodResolver(botSchema),
     defaultValues: {
-      name: '',
+      title: '',
       username: '',
-      status: 'active',
+      notification_group_id: 0,
+      bot_token: '',
+      request_port: 0,
     },
   });
-
-  const status = watch('status');
 
   useEffect(() => {
     if (id) {
@@ -58,9 +58,11 @@ const BotFormPage: React.FC = () => {
         try {
           const bot = await botsApi.getById(id);
           if (bot) {
-            setValue('name', bot.name);
+            setValue('title', bot.title);
             setValue('username', bot.username);
-            setValue('status', bot.status);
+            setValue('notification_group_id', bot.notification_group_id);
+            setValue('bot_token', bot.bot_token);
+            setValue('request_port', bot.request_port);
           }
         } catch (error) {
           toast({
@@ -84,7 +86,7 @@ const BotFormPage: React.FC = () => {
         await botsApi.update(id!, data);
         toast({ title: 'Успешно', description: 'Бот обновлён' });
       } else {
-        await botsApi.create(data as Omit<Bot, 'id' | 'createdAt'>);
+        await botsApi.create(data as Omit<Bot, 'id' | 'created_at'>);
         toast({ title: 'Успешно', description: 'Бот создан' });
       }
       navigate('/admin/bots');
@@ -130,15 +132,15 @@ const BotFormPage: React.FC = () => {
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Название</Label>
+              <Label htmlFor="title">Название</Label>
               <Input
-                id="name"
+                id="title"
                 placeholder="Основной бот"
-                {...register('name')}
+                {...register('title')}
                 disabled={isLoading}
               />
-              {errors.name && (
-                <p className="text-sm text-destructive">{errors.name.message}</p>
+              {errors.title && (
+                <p className="text-sm text-destructive">{errors.title.message}</p>
               )}
             </div>
 
@@ -156,23 +158,48 @@ const BotFormPage: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              <Label>Статус</Label>
-              <Select
-                value={status}
-                onValueChange={(value) =>
-                  setValue('status', value as 'active' | 'inactive' | 'suspended')
-                }
+              <Label htmlFor="notification_group_id">ID группы уведомлений</Label>
+              <Input
+                id="notification_group_id"
+                type="number"
+                placeholder="-213123123"
+                {...register('notification_group_id')}
                 disabled={isLoading}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-popover">
-                  <SelectItem value="active">Активен</SelectItem>
-                  <SelectItem value="inactive">Неактивен</SelectItem>
-                  <SelectItem value="suspended">Приостановлен</SelectItem>
-                </SelectContent>
-              </Select>
+              />
+              {errors.notification_group_id && (
+                <p className="text-sm text-destructive">
+                  {errors.notification_group_id.message as string}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="bot_token">Токен бота</Label>
+              <Input
+                id="bot_token"
+                placeholder="12345:ABC..."
+                {...register('bot_token')}
+                disabled={isLoading}
+              />
+              {errors.bot_token && (
+                <p className="text-sm text-destructive">{errors.bot_token.message}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="request_port">Порт</Label>
+              <Input
+                id="request_port"
+                type="number"
+                placeholder="5670"
+                {...register('request_port')}
+                disabled={isLoading}
+              />
+              {errors.request_port && (
+                <p className="text-sm text-destructive">
+                  {errors.request_port.message as string}
+                </p>
+              )}
             </div>
 
             <div className="flex gap-3 pt-4">

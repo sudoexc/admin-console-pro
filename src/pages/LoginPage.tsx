@@ -8,11 +8,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Shield, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Shield } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const loginSchema = z.object({
-  email: z.string().email('Введите корректный email'),
+  username: z.string().min(1, 'Введите username'),
   password: z.string().min(1, 'Введите пароль'),
 });
 
@@ -24,7 +24,6 @@ const LoginPage: React.FC = () => {
   const { login } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
 
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/admin';
 
@@ -35,18 +34,18 @@ const LoginPage: React.FC = () => {
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: 'admin@example.com',
-      password: 'admin123',
+      username: 'admin',
+      password: '',
     },
   });
 
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
     try {
-      await login(data.email, data.password);
+      await login(data.username, data.password);
       toast({
         title: 'Успешный вход',
-        description: 'Добро пожаловать в панель управления',
+        description: 'Доступ к панели открыт',
       });
       navigate(from, { replace: true });
     } catch (error) {
@@ -80,43 +79,29 @@ const LoginPage: React.FC = () => {
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="username">Username</Label>
               <Input
-                id="email"
-                type="email"
-                placeholder="admin@example.com"
-                {...register('email')}
+                id="username"
+                placeholder="admin"
+                {...register('username')}
                 className="h-11"
                 disabled={isLoading}
               />
-              {errors.email && (
-                <p className="text-sm text-destructive">{errors.email.message}</p>
+              {errors.username && (
+                <p className="text-sm text-destructive">{errors.username.message}</p>
               )}
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="password">Пароль</Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="••••••••"
-                  {...register('password')}
-                  className="h-11 pr-10"
-                  disabled={isLoading}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
-                </button>
-              </div>
+              <Input
+                id="password"
+                type="password"
+                placeholder="••••••••"
+                {...register('password')}
+                className="h-11"
+                disabled={isLoading}
+              />
               {errors.password && (
                 <p className="text-sm text-destructive">{errors.password.message}</p>
               )}
@@ -134,14 +119,9 @@ const LoginPage: React.FC = () => {
             </Button>
           </form>
 
-          <div className="mt-6 p-4 rounded-lg bg-muted/50 border border-border">
-            <p className="text-sm text-muted-foreground text-center">
-              <span className="font-medium">Демо доступ:</span>
-              <br />
-              Email: admin@example.com
-              <br />
-              Пароль: admin123
-            </p>
+          <div className="mt-6 p-4 rounded-lg bg-muted/50 border border-border text-sm text-muted-foreground">
+            Данные логина отправляются на `/api/token/`, а полученные access/refresh сохраняются
+            автоматически.
           </div>
         </CardContent>
       </Card>

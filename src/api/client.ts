@@ -1,7 +1,8 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 
-const BASE_URL = '/api';
+const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
+// Используем мок только для локальных списков (боты подключаем к реальному бэкенду отдельно)
 export const MOCK_MODE = true;
 
 export const apiClient = axios.create({
@@ -91,27 +92,16 @@ apiClient.interceptors.response.use(
       }
 
       try {
-        // In mock mode, we'll handle this differently
-        if (MOCK_MODE) {
-          const newToken = 'mock-refreshed-token-' + Date.now();
-          localStorage.setItem('accessToken', newToken);
-          processQueue(null, newToken);
-          if (originalRequest.headers) {
-            originalRequest.headers.Authorization = `Bearer ${newToken}`;
-          }
-          return apiClient(originalRequest);
-        }
-
-        const response = await axios.post(`${BASE_URL}/auth/refresh`, {
-          refreshToken,
+        const response = await axios.post(`${BASE_URL}/token/refresh/`, {
+          refresh: refreshToken,
         });
 
-        const { accessToken } = response.data;
-        localStorage.setItem('accessToken', accessToken);
-        processQueue(null, accessToken);
+        const { access } = response.data as { access: string };
+        localStorage.setItem('accessToken', access);
+        processQueue(null, access);
 
         if (originalRequest.headers) {
-          originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+          originalRequest.headers.Authorization = `Bearer ${access}`;
         }
 
         return apiClient(originalRequest);

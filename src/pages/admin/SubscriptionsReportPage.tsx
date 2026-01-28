@@ -1,206 +1,280 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Download } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { DataTable } from '@/components/table/DataTable';
-import { DataTableSearch } from '@/components/table/DataTableSearch';
-import { DataTablePagination } from '@/components/table/DataTablePagination';
-import { StatusBadge } from '@/components/ui/status-badge';
-import { subscriptionsApi } from '@/api/entities';
-import { Subscription } from '@/types/entities';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { BarChart3, Download } from 'lucide-react';
 import { format } from 'date-fns';
-import { ru } from 'date-fns/locale';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { paymentsApi } from '@/api/entities';
+import { Payment } from '@/types/entities';
 import { useToast } from '@/hooks/use-toast';
-
-const statusLabels: Record<string, string> = {
-  active: 'Активна',
-  expired: 'Истекла',
-  cancelled: 'Отменена',
-};
 
 const SubscriptionsReportPage: React.FC = () => {
   const { toast } = useToast();
-  const [data, setData] = useState<Subscription[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
-  const limit = 20;
+  const [fromInput, setFromInput] = useState('');
+  const [toInput, setToInput] = useState('');
+  const [appliedRange, setAppliedRange] = useState<{ from?: string; to?: string }>({});
 
-  const fetchData = useCallback(async () => {
+  const fetchPayments = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await subscriptionsApi.getAll({ page, limit, search });
-      setData(response.data);
-      setTotal(response.total);
-      setTotalPages(response.totalPages);
+      const response = await paymentsApi.getAll({
+        page: 1,
+        limit: 1000,
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
+      });
+      setPayments(response.data);
     } catch (error) {
       toast({
         title: 'Ошибка',
-        description: 'Не удалось загрузить данные',
+        description: 'Не удалось загрузить платежи',
         variant: 'destructive',
       });
     } finally {
       setIsLoading(false);
     }
-  }, [page, search, toast]);
+  }, [toast]);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    fetchPayments();
+  }, [fetchPayments]);
+
+  const applyRange = () => {
+    setAppliedRange({
+      from: fromInput || undefined,
+      to: toInput || undefined,
+    });
+  };
+
+  const filteredPayments = useMemo(() => {
+    const from = appliedRange.from ? new Date(appliedRange.from) : null;
+    const to = appliedRange.to ? new Date(appliedRange.to) : null;
+    if (to) {
+      to.setHours(23, 59, 59, 999);
+    }
+
+    return payments
+      .filter((p) => p.status === 'completed')
+      .filter((p) => {
+        const created = new Date(p.createdAt);
+        if (from && created < from) return false;
+        if (to && created > to) return false;
+        return true;
+      });
+  }, [payments, appliedRange]);
+
+  const totalCount = filteredPayments.length;
+  const totalAmount = filteredPayments.reduce((sum, p) => sum + p.amount, 0);
+
+  const aggregate = useCallback(
+    (key: 'method' | 'botName') => {
+      const result: { name: string; count: number; sum: number }[] = [];
+      const map = new Map<string, { count: number; sum: number }>();
+
+      filteredPayments.forEach((payment) => {
+        const rawKey =
+          key === 'method'
+            ? payment.method || 'Не указан'
+            : payment.botName || 'Без бота';
+        const current = map.get(rawKey) || { count: 0, sum: 0 };
+        current.count += 1;
+        current.sum += payment.amount;
+        map.set(rawKey, current);
+      });
+
+      map.forEach((value, name) => {
+        result.push({ name, ...value });
+      });
+
+      return result.sort((a, b) => b.sum - a.sum);
+    },
+    [filteredPayments]
+  );
+
+  const methodStats = useMemo(() => aggregate('method'), [aggregate]);
+  const botStats = useMemo(() => aggregate('botName'), [aggregate]);
+
+  const formatNumber = (value: number) =>
+    new Intl.NumberFormat('ru-RU').format(value);
 
   const handleExport = () => {
-    // Create CSV content
-    const headers = ['ID', 'Пользователь', 'Тариф', 'Начало', 'Окончание', 'Статус'];
-    const rows = data.map((sub) => [
-      sub.id,
-      sub.userName || sub.userId,
-      sub.planTitle || sub.planId,
-      format(new Date(sub.startAt), 'dd.MM.yyyy'),
-      format(new Date(sub.endAt), 'dd.MM.yyyy'),
-      statusLabels[sub.status],
-    ]);
+    const lines: string[] = [];
+    lines.push('Отчёт по подпискам');
+    if (appliedRange.from || appliedRange.to) {
+      lines.push(`Период: ${appliedRange.from || '—'} — ${appliedRange.to || '—'}`);
+    }
+    lines.push('');
+    lines.push('Общая статистика');
+    lines.push(`Всего платежей;${totalCount}`);
+    lines.push(`Общая сумма;${totalAmount}`);
+    lines.push('');
+    lines.push('По методам оплаты');
+    lines.push('Метод;Количество;Сумма');
+    methodStats.forEach((row) => {
+      lines.push(`${row.name};${row.count};${row.sum}`);
+    });
+    lines.push('');
+    lines.push('По ботам');
+    lines.push('Бот;Количество;Сумма');
+    botStats.forEach((row) => {
+      lines.push(`${row.name};${row.count};${row.sum}`);
+    });
 
-    const csvContent = [
-      headers.join(','),
-      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(',')),
-    ].join('\n');
-
-    // Create and download file
-    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const csvContent = '\ufeff' + lines.join('\n');
+    const blob = new Blob([csvContent], {
+      type: 'application/vnd.ms-excel;charset=utf-8;',
+    });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = `subscriptions_report_${format(new Date(), 'yyyy-MM-dd')}.csv`;
     link.click();
 
-    toast({ title: 'Экспорт', description: 'Отчёт успешно экспортирован' });
+    toast({ title: 'Экспорт', description: 'Файл сохранён' });
   };
-
-  const columns = [
-    {
-      key: 'id',
-      header: 'ID',
-      cell: (sub: Subscription) => (
-        <span className="text-muted-foreground">#{sub.id}</span>
-      ),
-    },
-    {
-      key: 'user',
-      header: 'Пользователь',
-      cell: (sub: Subscription) => (
-        <p className="font-medium">{sub.userName || `ID: ${sub.userId}`}</p>
-      ),
-    },
-    {
-      key: 'plan',
-      header: 'Тариф',
-      cell: (sub: Subscription) => sub.planTitle || sub.planId,
-    },
-    {
-      key: 'startAt',
-      header: 'Начало',
-      cell: (sub: Subscription) =>
-        format(new Date(sub.startAt), 'dd MMM yyyy', { locale: ru }),
-    },
-    {
-      key: 'endAt',
-      header: 'Окончание',
-      cell: (sub: Subscription) =>
-        format(new Date(sub.endAt), 'dd MMM yyyy', { locale: ru }),
-    },
-    {
-      key: 'status',
-      header: 'Статус',
-      cell: (sub: Subscription) => (
-        <StatusBadge status={sub.status} label={statusLabels[sub.status]} />
-      ),
-    },
-  ];
-
-  // Summary stats
-  const activeCount = data.filter((s) => s.status === 'active').length;
-  const expiredCount = data.filter((s) => s.status === 'expired').length;
-  const cancelledCount = data.filter((s) => s.status === 'cancelled').length;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Отчёт по подпискам</h1>
-          <p className="text-muted-foreground">Аналитика и экспорт данных о подписках</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <BarChart3 className="h-6 w-6 text-primary" />
+          <div>
+            <h1 className="text-2xl font-bold">Отчёты по подпискам</h1>
+            <p className="text-sm text-muted-foreground">
+              Фильтр по датам, статистика, выгрузка в Excel
+            </p>
+          </div>
         </div>
-        <Button onClick={handleExport} disabled={data.length === 0}>
-          <Download className="mr-2 h-4 w-4" />
-          Экспорт CSV
-        </Button>
-      </div>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="glass">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Активные
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-success">{activeCount}</p>
-          </CardContent>
-        </Card>
-        <Card className="glass">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Истёкшие
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-warning">{expiredCount}</p>
-          </CardContent>
-        </Card>
-        <Card className="glass">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Отменённые
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-destructive">{cancelledCount}</p>
-          </CardContent>
-        </Card>
       </div>
 
       <Card className="glass">
-        <CardContent className="p-6">
-          <div className="mb-4">
-            <DataTableSearch
-              value={search}
-              onChange={(value) => {
-                setSearch(value);
-                setPage(1);
-              }}
-              placeholder="Поиск..."
-              showFilterButton={false}
+        <CardContent className="p-4 flex flex-wrap items-end gap-4">
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-muted-foreground">С даты</label>
+            <Input
+              type="date"
+              value={fromInput}
+              onChange={(e) => setFromInput(e.target.value)}
+              placeholder="дд.мм.гггг"
+              className="w-48"
             />
           </div>
-
-          <DataTable
-            columns={columns}
-            data={data}
-            isLoading={isLoading}
-            rowKey={(sub) => sub.id}
-            emptyMessage="Подписки не найдены"
-          />
-
-          {totalPages > 1 && (
-            <DataTablePagination
-              page={page}
-              totalPages={totalPages}
-              total={total}
-              limit={limit}
-              onPageChange={setPage}
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-muted-foreground">По дату</label>
+            <Input
+              type="date"
+              value={toInput}
+              onChange={(e) => setToInput(e.target.value)}
+              placeholder="дд.мм.гггг"
+              className="w-48"
             />
-          )}
+          </div>
+          <div className="flex gap-2 ml-auto">
+            <Button onClick={applyRange} disabled={isLoading}>
+              Показать
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleExport}
+              disabled={isLoading || filteredPayments.length === 0}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Скачать Excel
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="glass">
+        <CardContent className="p-6 space-y-3">
+          <h2 className="text-xl font-semibold">Общая статистика</h2>
+          <ul className="list-disc pl-5 space-y-1 text-lg">
+            <li>Всего платежей: {formatNumber(totalCount)}</li>
+            <li>Общая сумма: {formatNumber(totalAmount)}</li>
+          </ul>
+        </CardContent>
+      </Card>
+
+      <Card className="glass">
+        <CardContent className="p-6 space-y-4">
+          <h2 className="text-xl font-semibold">По методам оплаты</h2>
+          <div className="border rounded-md overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-1/2">Метод</TableHead>
+                  <TableHead className="w-1/4">Количество</TableHead>
+                  <TableHead className="w-1/4">Сумма</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading && (
+                  <TableRow>
+                    <TableCell colSpan={3}>Загрузка...</TableCell>
+                  </TableRow>
+                )}
+                {!isLoading && methodStats.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={3}>Данных нет</TableCell>
+                  </TableRow>
+                )}
+                {!isLoading &&
+                  methodStats.map((row) => (
+                    <TableRow key={row.name}>
+                      <TableCell className="font-medium capitalize">{row.name}</TableCell>
+                      <TableCell>{formatNumber(row.count)}</TableCell>
+                      <TableCell>{formatNumber(row.sum)}</TableCell>
+                    </TableRow>
+                  ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="glass">
+        <CardContent className="p-6 space-y-4">
+          <h2 className="text-xl font-semibold">По ботам</h2>
+          <div className="border rounded-md overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-1/2">Бот</TableHead>
+                  <TableHead className="w-1/4">Количество</TableHead>
+                  <TableHead className="w-1/4">Сумма</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading && (
+                  <TableRow>
+                    <TableCell colSpan={3}>Загрузка...</TableCell>
+                  </TableRow>
+                )}
+                {!isLoading && botStats.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={3}>Данных нет</TableCell>
+                  </TableRow>
+                )}
+                {!isLoading &&
+                  botStats.map((row) => (
+                    <TableRow key={row.name}>
+                      <TableCell className="font-medium">{row.name}</TableCell>
+                      <TableCell>{formatNumber(row.count)}</TableCell>
+                      <TableCell>{formatNumber(row.sum)}</TableCell>
+                    </TableRow>
+                  ))}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
     </div>

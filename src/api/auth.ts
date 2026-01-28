@@ -1,64 +1,58 @@
-import { MOCK_MODE, apiClient, mockDelay, setTokens, clearTokens } from './client';
-import { LoginRequest, LoginResponse, RefreshResponse, AuthUser } from '@/types/entities';
-import { mockAuthUser } from './mockData';
+import { apiClient, setTokens, clearTokens, getAccessToken, getRefreshToken } from './client';
+import { AuthUser, LoginRequest } from '@/types/entities';
+
+const decodeJwt = (token?: string | null): Partial<AuthUser> => {
+  if (!token) return {};
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1] || ''));
+    return {
+      id: String(payload.user_id || payload.sub || '1'),
+      name: payload.username || payload.name || 'Админ',
+      email: payload.email || 'admin@example.com',
+      role: 'admin',
+    };
+  } catch {
+    return {};
+  }
+};
 
 export const authApi = {
-  login: async (data: LoginRequest): Promise<LoginResponse> => {
-    if (MOCK_MODE) {
-      await mockDelay(500);
-      
-      // Simple validation for demo
-      if (data.email === 'admin@example.com' && data.password === 'admin123') {
-        const response: LoginResponse = {
-          accessToken: 'mock-access-token-' + Date.now(),
-          refreshToken: 'mock-refresh-token-' + Date.now(),
-          user: mockAuthUser,
-        };
-        setTokens(response.accessToken, response.refreshToken);
-        return response;
-      }
-      
-      throw new Error('Неверный email или пароль');
-    }
-
-    const response = await apiClient.post<LoginResponse>('/auth/login', data);
-    setTokens(response.data.accessToken, response.data.refreshToken);
-    return response.data;
+  login: async (data: LoginRequest): Promise<AuthUser> => {
+    const response = await apiClient.post<{ access: string; refresh: string }>('/token/', data);
+    const { access, refresh } = response.data;
+    setTokens(access, refresh);
+    const decoded = decodeJwt(access);
+    return {
+      id: decoded.id || '1',
+      name: decoded.name || data.username || 'Админ',
+      email: decoded.email || 'admin@example.com',
+      role: 'admin',
+    };
   },
 
-  refresh: async (refreshToken: string): Promise<RefreshResponse> => {
-    if (MOCK_MODE) {
-      await mockDelay(200);
-      return {
-        accessToken: 'mock-refreshed-token-' + Date.now(),
-      };
+  refresh: async (): Promise<string> => {
+    const refresh = getRefreshToken();
+    if (!refresh) {
+      throw new Error('Нет refresh токена');
     }
-
-    const response = await apiClient.post<RefreshResponse>('/auth/refresh', { refreshToken });
-    return response.data;
+    const response = await apiClient.post<{ access: string }>('/token/refresh/', { refresh });
+    const { access } = response.data;
+    setTokens(access, refresh);
+    return access;
   },
 
   me: async (): Promise<AuthUser> => {
-    if (MOCK_MODE) {
-      await mockDelay(200);
-      return mockAuthUser;
-    }
-
-    const response = await apiClient.get<AuthUser>('/auth/me');
-    return response.data;
+    const token = getAccessToken();
+    const decoded = decodeJwt(token);
+    return {
+      id: decoded.id || '1',
+      name: decoded.name || 'Админ',
+      email: decoded.email || 'admin@example.com',
+      role: 'admin',
+    };
   },
 
   logout: async (): Promise<void> => {
-    if (MOCK_MODE) {
-      await mockDelay(100);
-      clearTokens();
-      return;
-    }
-
-    try {
-      await apiClient.post('/auth/logout');
-    } finally {
-      clearTokens();
-    }
+    clearTokens();
   },
 };

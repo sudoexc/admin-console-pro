@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -8,15 +8,33 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Loader2, ArrowLeft } from 'lucide-react';
-import { plansApi } from '@/api/entities';
+import { plansApi, botsApi } from '@/api/entities';
+import { Bot, SubscriptionPlan } from '@/types/entities';
 import { useToast } from '@/hooks/use-toast';
 
 const planSchema = z.object({
-  title: z.string().min(1, 'Введите название').max(100),
-  price: z.number().min(0, 'Цена не может быть отрицательной'),
-  periodDays: z.number().min(1, 'Минимум 1 день'),
-  isActive: z.boolean(),
+  bot: z.preprocess(
+    (val) => Number(val),
+    z.number({ required_error: 'Выберите бота' }).int('Только целое число')
+  ),
+  name: z.string().min(1, 'Введите название').max(100),
+  duration_days: z.preprocess(
+    (val) => Number(val),
+    z.number({ required_error: 'Введите длительность' }).int('Только целое число')
+  ),
+  price_usdt: z.string().min(1, 'Введите цену в USDT'),
+  price_uzs: z.string().min(1, 'Введите цену в UZS'),
+  price_stars: z.string().min(1, 'Введите цену в STARS'),
+  price_rub: z.string().min(1, 'Введите цену в RUB'),
+  is_active: z.boolean(),
 });
 
 type PlanFormData = z.infer<typeof planSchema>;
@@ -27,6 +45,7 @@ const PlanFormPage: React.FC = () => {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(!!id);
+  const [bots, setBots] = useState<Bot[]>([]);
   const isEdit = !!id;
 
   const {
@@ -38,30 +57,58 @@ const PlanFormPage: React.FC = () => {
   } = useForm<PlanFormData>({
     resolver: zodResolver(planSchema),
     defaultValues: {
-      title: '',
-      price: 0,
-      periodDays: 30,
-      isActive: true,
+      bot: 0,
+      name: '',
+      duration_days: 30,
+      price_usdt: '',
+      price_uzs: '',
+      price_stars: '',
+      price_rub: '',
+      is_active: true,
     },
   });
 
-  const isActive = watch('isActive');
+  const isActive = watch('is_active');
+  const selectedBot = watch('bot');
+
+  const botOptions = useMemo(
+    () =>
+      bots.map((bot) => ({
+        id: Number(bot.id),
+        label: `${bot.title} (${bot.username})`,
+      })),
+    [bots]
+  );
 
   useEffect(() => {
+    const loadBots = async () => {
+      try {
+        const botsResponse = await botsApi.getAll();
+        setBots(botsResponse);
+      } catch {
+        setBots([]);
+      }
+    };
+    loadBots();
+
     if (id) {
       const fetchPlan = async () => {
         try {
           const plan = await plansApi.getById(id);
           if (plan) {
-            setValue('title', plan.title);
-            setValue('price', plan.price);
-            setValue('periodDays', plan.periodDays);
-            setValue('isActive', plan.isActive);
+            setValue('bot', plan.bot);
+            setValue('name', plan.name);
+            setValue('duration_days', plan.duration_days);
+            setValue('price_usdt', plan.price_usdt);
+            setValue('price_uzs', plan.price_uzs);
+            setValue('price_stars', plan.price_stars);
+            setValue('price_rub', plan.price_rub);
+            setValue('is_active', plan.is_active);
           }
         } catch (error) {
           toast({
             title: 'Ошибка',
-            description: 'Не удалось загрузить данные тарифа',
+            description: 'Не удалось загрузить данные плана',
             variant: 'destructive',
           });
           navigate('/admin/subscription-plans');
@@ -76,18 +123,28 @@ const PlanFormPage: React.FC = () => {
   const onSubmit = async (data: PlanFormData) => {
     setIsLoading(true);
     try {
+      const payload: Omit<SubscriptionPlan, 'id' | 'created_at'> = {
+        bot: data.bot,
+        name: data.name,
+        duration_days: data.duration_days,
+        price_usdt: data.price_usdt,
+        price_uzs: data.price_uzs,
+        price_stars: data.price_stars,
+        price_rub: data.price_rub,
+        is_active: data.is_active,
+      };
       if (isEdit) {
-        await plansApi.update(id!, data);
-        toast({ title: 'Успешно', description: 'Тариф обновлён' });
+        await plansApi.update(id!, payload);
+        toast({ title: 'Успешно', description: 'План обновлён' });
       } else {
-        await plansApi.create(data as { title: string; price: number; periodDays: number; isActive: boolean });
-        toast({ title: 'Успешно', description: 'Тариф создан' });
+        await plansApi.create(payload);
+        toast({ title: 'Успешно', description: 'План создан' });
       }
       navigate('/admin/subscription-plans');
     } catch (error) {
       toast({
         title: 'Ошибка',
-        description: isEdit ? 'Не удалось обновить тариф' : 'Не удалось создать тариф',
+        description: isEdit ? 'Не удалось обновить план' : 'Не удалось создать план',
         variant: 'destructive',
       });
     } finally {
@@ -115,74 +172,144 @@ const PlanFormPage: React.FC = () => {
         </Button>
         <div>
           <h1 className="text-2xl font-bold">
-            {isEdit ? 'Редактировать тариф' : 'Добавить тариф'}
+            {isEdit ? 'Редактировать План подписки' : 'Добавить План подписки'}
           </h1>
           <p className="text-muted-foreground">
-            {isEdit ? 'Измените данные тарифа' : 'Заполните данные нового тарифа'}
+            {isEdit ? 'Измените данные плана' : 'Заполните данные нового плана'}
           </p>
         </div>
       </div>
 
       <Card className="glass">
         <CardHeader>
-          <CardTitle>Данные тарифа</CardTitle>
+          <CardTitle>Данные плана</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="title">Название</Label>
+              <Label htmlFor="bot">Bot</Label>
+              <Select
+                value={selectedBot ? String(selectedBot) : ''}
+                onValueChange={(value) => setValue('bot', Number(value))}
+                disabled={isLoading}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Выберите бота" />
+                </SelectTrigger>
+                <SelectContent className="bg-popover">
+                  {botOptions.map((bot) => (
+                    <SelectItem key={bot.id} value={String(bot.id)}>
+                      {bot.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errors.bot && (
+                <p className="text-sm text-destructive">
+                  {errors.bot.message as string}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="name">Name</Label>
               <Input
-                id="title"
-                placeholder="Премиум"
-                {...register('title')}
+                id="name"
+                placeholder="7 Дней"
+                {...register('name')}
                 disabled={isLoading}
               />
-              {errors.title && (
-                <p className="text-sm text-destructive">{errors.title.message}</p>
+              {errors.name && (
+                <p className="text-sm text-destructive">{errors.name.message}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="duration_days">Duration days</Label>
+              <Input
+                id="duration_days"
+                type="number"
+                placeholder="7"
+                {...register('duration_days')}
+                disabled={isLoading}
+              />
+              {errors.duration_days && (
+                <p className="text-sm text-destructive">
+                  {errors.duration_days.message as string}
+                </p>
               )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="price">Цена (₽)</Label>
+                <Label htmlFor="price_usdt">Price usdt</Label>
                 <Input
-                  id="price"
+                  id="price_usdt"
                   type="number"
-                  placeholder="999"
-                  {...register('price', { valueAsNumber: true })}
+                  step="0.01"
+                  placeholder="4.00"
+                  {...register('price_usdt')}
                   disabled={isLoading}
                 />
-                {errors.price && (
-                  <p className="text-sm text-destructive">{errors.price.message}</p>
+                {errors.price_usdt && (
+                  <p className="text-sm text-destructive">{errors.price_usdt.message}</p>
                 )}
               </div>
-
               <div className="space-y-2">
-                <Label htmlFor="periodDays">Период (дней)</Label>
+                <Label htmlFor="price_uzs">Price uzs</Label>
                 <Input
-                  id="periodDays"
+                  id="price_uzs"
                   type="number"
-                  placeholder="30"
-                  {...register('periodDays', { valueAsNumber: true })}
+                  step="0.01"
+                  placeholder="45000.00"
+                  {...register('price_uzs')}
                   disabled={isLoading}
                 />
-                {errors.periodDays && (
-                  <p className="text-sm text-destructive">{errors.periodDays.message}</p>
+                {errors.price_uzs && (
+                  <p className="text-sm text-destructive">{errors.price_uzs.message}</p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="price_stars">Price stars</Label>
+                <Input
+                  id="price_stars"
+                  type="number"
+                  step="0.01"
+                  placeholder="1.00"
+                  {...register('price_stars')}
+                  disabled={isLoading}
+                />
+                {errors.price_stars && (
+                  <p className="text-sm text-destructive">{errors.price_stars.message}</p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="price_rub">Price rub</Label>
+                <Input
+                  id="price_rub"
+                  type="number"
+                  step="0.01"
+                  placeholder="400.00"
+                  {...register('price_rub')}
+                  disabled={isLoading}
+                />
+                {errors.price_rub && (
+                  <p className="text-sm text-destructive">{errors.price_rub.message}</p>
                 )}
               </div>
             </div>
 
             <div className="flex items-center justify-between p-4 rounded-lg bg-muted/30">
               <div>
-                <Label htmlFor="isActive">Активен</Label>
+                <Label htmlFor="is_active">Is active</Label>
                 <p className="text-sm text-muted-foreground">
-                  Тариф будет доступен для покупки
+                  План будет доступен для покупки
                 </p>
               </div>
               <Switch
-                id="isActive"
+                id="is_active"
                 checked={isActive}
-                onCheckedChange={(checked) => setValue('isActive', checked)}
+                onCheckedChange={(checked) => setValue('is_active', checked)}
                 disabled={isLoading}
               />
             </div>

@@ -1,16 +1,15 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { DataTable } from '@/components/table/DataTable';
 import { DataTableSearch } from '@/components/table/DataTableSearch';
-import { DataTablePagination } from '@/components/table/DataTablePagination';
 import { DataTableActions } from '@/components/table/DataTableActions';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { plansApi } from '@/api/entities';
-import { SubscriptionPlan } from '@/types/entities';
+import { plansApi, botsApi } from '@/api/entities';
+import { SubscriptionPlan, Bot } from '@/types/entities';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
@@ -19,22 +18,21 @@ const PlansPage: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [data, setData] = useState<SubscriptionPlan[]>([]);
+  const [bots, setBots] = useState<Bot[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const limit = 10;
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await plansApi.getAll({ page, limit, search });
-      setData(response.data);
-      setTotal(response.total);
-      setTotalPages(response.totalPages);
+      const [plansResponse, botsResponse] = await Promise.all([
+        plansApi.getAll(),
+        botsApi.getAll(),
+      ]);
+      setData(plansResponse);
+      setBots(botsResponse);
     } catch (error) {
       toast({
         title: 'Ошибка',
@@ -44,7 +42,7 @@ const PlansPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [page, search, toast]);
+  }, [toast]);
 
   useEffect(() => {
     fetchData();
@@ -69,49 +67,83 @@ const PlansPage: React.FC = () => {
     }
   };
 
-  const formatCurrency = (value: number): string => {
+  const formatCurrency = (value: number, currency: string): string => {
     return new Intl.NumberFormat('ru-RU', {
       style: 'currency',
-      currency: 'RUB',
-      maximumFractionDigits: 0,
+      currency,
+      maximumFractionDigits: 2,
     }).format(value);
   };
 
+  const formatNumber = (value: string): string => {
+    const parsed = Number(value);
+    if (Number.isNaN(parsed)) return value;
+    return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(parsed);
+  };
+
+  const botsMap = useMemo(() => {
+    const map = new Map<number, string>();
+    bots.forEach((bot) => map.set(Number(bot.id), bot.title));
+    return map;
+  }, [bots]);
+
+  const filtered = data.filter((plan) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (
+      plan.name.toLowerCase().includes(q) ||
+      String(plan.bot).includes(q) ||
+      String(plan.duration_days).includes(q)
+    );
+  });
+
   const columns = [
     {
-      key: 'title',
+      key: 'name',
       header: 'Название',
       cell: (plan: SubscriptionPlan) => (
-        <p className="font-medium">{plan.title}</p>
+        <p className="font-medium">{plan.name}</p>
       ),
     },
     {
-      key: 'price',
-      header: 'Цена',
+      key: 'bot',
+      header: 'Бот',
+      cell: (plan: SubscriptionPlan) => botsMap.get(plan.bot) || `ID ${plan.bot}`,
+    },
+    {
+      key: 'prices',
+      header: 'Цены',
       cell: (plan: SubscriptionPlan) => (
-        <p className="font-semibold">{formatCurrency(plan.price)}</p>
+        <div className="text-sm space-y-1">
+          <div>USDT: {formatNumber(plan.price_usdt)}</div>
+          <div>UZS: {formatNumber(plan.price_uzs)}</div>
+          <div>STARS: {formatNumber(plan.price_stars)}</div>
+          <div>RUB: {formatCurrency(Number(plan.price_rub), 'RUB')}</div>
+        </div>
       ),
     },
     {
-      key: 'period',
-      header: 'Период',
-      cell: (plan: SubscriptionPlan) => `${plan.periodDays} дней`,
+      key: 'duration',
+      header: 'Длительность',
+      cell: (plan: SubscriptionPlan) => `${plan.duration_days} дней`,
     },
     {
-      key: 'isActive',
+      key: 'is_active',
       header: 'Статус',
       cell: (plan: SubscriptionPlan) => (
         <StatusBadge
-          status={plan.isActive ? 'active' : 'inactive'}
-          label={plan.isActive ? 'Активен' : 'Неактивен'}
+          status={plan.is_active ? 'active' : 'inactive'}
+          label={plan.is_active ? 'Активен' : 'Неактивен'}
         />
       ),
     },
     {
-      key: 'createdAt',
+      key: 'created_at',
       header: 'Создан',
       cell: (plan: SubscriptionPlan) =>
-        format(new Date(plan.createdAt), 'dd MMM yyyy', { locale: ru }),
+        plan.created_at
+          ? format(new Date(plan.created_at), 'dd MMM yyyy', { locale: ru })
+          : '—',
     },
     {
       key: 'actions',
@@ -119,7 +151,7 @@ const PlansPage: React.FC = () => {
       cell: (plan: SubscriptionPlan) => (
         <DataTableActions
           onEdit={() => navigate(`/admin/subscription-plans/${plan.id}/edit`)}
-          onDelete={() => setDeleteId(plan.id)}
+          onDelete={() => setDeleteId(String(plan.id))}
         />
       ),
     },
@@ -129,12 +161,12 @@ const PlansPage: React.FC = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Тарифные планы</h1>
-          <p className="text-muted-foreground">Управление тарифами подписок</p>
+          <h1 className="text-2xl font-bold">Планы подписок</h1>
+          <p className="text-muted-foreground">Управление планами подписок</p>
         </div>
         <Button onClick={() => navigate('/admin/subscription-plans/create')}>
           <Plus className="mr-2 h-4 w-4" />
-          Добавить тариф
+          Добавить план
         </Button>
       </div>
 
@@ -145,38 +177,27 @@ const PlansPage: React.FC = () => {
               value={search}
               onChange={(value) => {
                 setSearch(value);
-                setPage(1);
               }}
-              placeholder="Поиск по названию..."
+              placeholder="Поиск по названию или ID бота..."
               showFilterButton={false}
             />
           </div>
 
           <DataTable
             columns={columns}
-            data={data}
+            data={filtered}
             isLoading={isLoading}
-            rowKey={(plan) => plan.id}
-            emptyMessage="Тарифы не найдены"
+            rowKey={(plan) => String(plan.id)}
+            emptyMessage="Планы не найдены"
           />
-
-          {totalPages > 1 && (
-            <DataTablePagination
-              page={page}
-              totalPages={totalPages}
-              total={total}
-              limit={limit}
-              onPageChange={setPage}
-            />
-          )}
         </CardContent>
       </Card>
 
       <ConfirmDialog
         open={!!deleteId}
         onOpenChange={(open) => !open && setDeleteId(null)}
-        title="Удалить тариф?"
-        description="Это действие нельзя отменить. Тариф будет удалён безвозвратно."
+        title="Удалить план?"
+        description="Это действие нельзя отменить. План будет удалён безвозвратно."
         confirmLabel="Удалить"
         onConfirm={handleDelete}
         isLoading={isDeleting}
